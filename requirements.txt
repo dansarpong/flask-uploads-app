@@ -1,0 +1,7 @@
+Flask==2.2
+Flask-SQLAlchemy==3.0.2
+SQLAlchemy==1.4.41
+mysqlclient==2.1.1
+Werkzeug==2.2
+python-dotenv==1.0.0
+boto3==1.28.13
