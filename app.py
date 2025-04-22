@@ -8,23 +8,51 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 import MySQLdb
 
-# Load environment variables
 load_dotenv()
+
+
+def get_ssm_parameter(param_name):
+    response = ssm_client.get_parameter(Name=param_name, WithDecryption=True)
+    return response['Parameter']['Value']
+
+AWS_REGION = os.getenv('AWS_REGION')
+if not AWS_REGION:
+    raise ValueError("AWS_REGION environment variable is not set")
+
+ssm_client = boto3.client('ssm', region_name=AWS_REGION)
+if AWS_REGION == 'eu-west-1':
+    S3_BUCKET = get_ssm_parameter('primary_bucket_name')
+    MYSQL_HOST = get_ssm_parameter('primary_rds_endpoint')
+
+else:
+    S3_BUCKET = get_ssm_parameter('dr_bucket_name')
+    MYSQL_HOST = get_ssm_parameter('dr_rds_endpoint')
+    
+MYSQL_USER = get_ssm_parameter('db_username')
+MYSQL_PASSWORD = get_ssm_parameter('db_password')
+MYSQL_DATABASE = get_ssm_parameter('db_name')
+
+MYSQL_HOST, MYSQL_PORT = MYSQL_HOST.split(':')
+MYSQL_PORT = int(MYSQL_PORT)
+
+MAX_CONTENT_LENGTH=16777216  # 16MB in bytes
+
+
 
 def create_database_if_not_exists():
     """Create the database if it doesn't exist."""
     try:
         # Connect to MySQL without specifying a database
         connection = MySQLdb.connect(
-            host=os.getenv('MYSQL_HOST'),
-            user=os.getenv('MYSQL_USER'),
-            passwd=os.getenv('MYSQL_PASSWORD'),
-            port=int(os.getenv('MYSQL_PORT', '3306'))
+            host=MYSQL_HOST,
+            user=MYSQL_USER,
+            passwd=MYSQL_PASSWORD,
+            port=MYSQL_PORT
         )
         cursor = connection.cursor()
         
         # Create database if it doesn't exist
-        database_name = os.getenv('MYSQL_DATABASE')
+        database_name = MYSQL_DATABASE
         cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{database_name}`")
         
         connection.close()
@@ -40,14 +68,14 @@ def create_app():
     app = Flask(__name__)
 
     # Configuration from environment variables
-    app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
-    app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))
+    # app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
+    app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
     # Database configuration
     db_uri = (
-        f"mysql://{os.getenv('MYSQL_USER')}:{os.getenv('MYSQL_PASSWORD')}@"
-        f"{os.getenv('MYSQL_HOST')}:{os.getenv('MYSQL_PORT', '3306')}/"
-        f"{os.getenv('MYSQL_DATABASE')}"
+        f"mysql://{MYSQL_USER}:{MYSQL_PASSWORD}@"
+        f"{MYSQL_HOST}:{MYSQL_PORT}/"
+        f"{MYSQL_DATABASE}"
     )
     app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -60,16 +88,14 @@ def create_app():
 app = create_app()
 
 # AWS Configuration
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-AWS_REGION = os.getenv('AWS_REGION')
-S3_BUCKET = os.getenv('S3_BUCKET')
+# AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+# AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 
 # Initialize AWS S3 client
 s3_client = boto3.client(
     's3',
-    aws_access_key_id=AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    # aws_access_key_id=AWS_ACCESS_KEY_ID,
+    # aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
 )
 
