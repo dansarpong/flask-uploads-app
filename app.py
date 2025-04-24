@@ -60,7 +60,7 @@ if AWS_REGION == 'eu-west-1':
 else:
     S3_BUCKET = get_ssm_parameter('dr_bucket_name')
     MYSQL_HOST = get_ssm_parameter('dr_rds_endpoint')
-    
+
 MYSQL_USER = get_ssm_parameter('db_username')
 MYSQL_PASSWORD = get_ssm_parameter('db_password')
 MYSQL_DATABASE = get_ssm_parameter('db_name')
@@ -101,7 +101,7 @@ def create_app():
     app = Flask(__name__)
 
     # Configuration from environment variables
-    # app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
+    app.config['SECRET_KEY'] = 'dev-secret-key'  # Replace with SSM parameter in production
     app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
     # Database configuration
@@ -115,20 +115,18 @@ def create_app():
 
     # Initialize database
     db.init_app(app)
+    
+    with app.app_context():
+        db.create_all()  # Create database tables
 
     return app
 
 app = create_app()
 
-# AWS Configuration
-# AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-# AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 
 # Initialize AWS S3 client
 s3_client = boto3.client(
     's3',
-    # aws_access_key_id=AWS_ACCESS_KEY_ID,
-    # aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
 )
 
