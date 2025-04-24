@@ -1,23 +1,56 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 from werkzeug.utils import secure_filename
-import os
 import boto3
 from botocore.exceptions import ClientError
 from database import db, FileMetadata
 from datetime import datetime, timezone
-from dotenv import load_dotenv
 import MySQLdb
+import requests
 
-load_dotenv()
 
 
 def get_ssm_parameter(param_name):
     response = ssm_client.get_parameter(Name=param_name, WithDecryption=True)
     return response['Parameter']['Value']
 
-AWS_REGION = os.getenv('AWS_REGION')
+def get_aws_region():
+    """
+    Fetches the current EC2 instance's AWS region using IMDSv2
+    Returns region string or None if not running on EC2
+    """
+    token_url = "http://169.254.169.254/latest/api/token"
+    metadata_url = "http://169.254.169.254/latest/meta-data/placement/availability-zone"
+    
+    try:
+        # Get IMDSv2 token
+        token_response = requests.put(
+            token_url,
+            headers={"X-aws-ec2-metadata-token-ttl-seconds": "21600"},
+            timeout=2
+        )
+        token_response.raise_for_status()
+        
+        # Get availability zone with token
+        headers = {"X-aws-ec2-metadata-token": token_response.text}
+        az_response = requests.get(metadata_url, headers=headers, timeout=2)
+        az_response.raise_for_status()
+        
+        # Remove last character to get region
+        return az_response.text[:-1]
+        
+    except requests.exceptions.RequestException as e:
+        # Fallback to IMDSv1 if IMDSv2 fails
+        try:
+            az_response = requests.get(metadata_url, timeout=2)
+            az_response.raise_for_status()
+            return az_response.text[:-1]
+        except requests.exceptions.RequestException:
+            return None
+
+AWS_REGION = get_aws_region()
 if not AWS_REGION:
-    raise ValueError("AWS_REGION environment variable is not set")
+    raise ValueError("AWS_REGION is not found")
 
 ssm_client = boto3.client('ssm', region_name=AWS_REGION)
 if AWS_REGION == 'eu-west-1':
