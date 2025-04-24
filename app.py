@@ -53,20 +53,22 @@ if not AWS_REGION:
     raise ValueError("AWS_REGION is not found")
 
 ssm_client = boto3.client('ssm', region_name=AWS_REGION)
+rds_client = boto3.client('rds', region_name=AWS_REGION)
 if AWS_REGION == 'eu-west-1':
     S3_BUCKET = get_ssm_parameter('primary_bucket_name')
-    MYSQL_HOST = get_ssm_parameter('primary_rds_endpoint')
+    MYSQL_NAME = get_ssm_parameter('primary_rds_name')
 
 else:
     S3_BUCKET = get_ssm_parameter('dr_bucket_name')
-    MYSQL_HOST = get_ssm_parameter('dr_rds_endpoint')
+    MYSQL_NAME = get_ssm_parameter('dr_rds_name')
 
 MYSQL_USER = get_ssm_parameter('db_username')
 MYSQL_PASSWORD = get_ssm_parameter('db_password')
 MYSQL_DATABASE = get_ssm_parameter('db_name')
 
-MYSQL_HOST, MYSQL_PORT = MYSQL_HOST.split(':')
-MYSQL_PORT = int(MYSQL_PORT)
+MYSQL_DETAILS = rds_client.describe_db_instances(DBInstanceIdentifier=MYSQL_NAME)
+MYSQL_HOST = MYSQL_DETAILS['DBInstances'][0]['Endpoint']['Address']
+MYSQL_PORT = MYSQL_DETAILS['DBInstances'][0]['Endpoint']['Port']
 
 MAX_CONTENT_LENGTH=16777216  # 16MB in bytes
 
